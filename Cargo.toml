@@ -8,15 +8,23 @@ version = "0.1.0"
 crate-type = ["cdylib"]
 
 [dependencies]
-napi-derive = "3.0.0"
-
-[dependencies.napi]
-version = "3.0.0"
-features = ["napi10"]
+napi-derive = { version = "3.0" }
+napi = { version = "3.0", features = [
+    "napi10",
+    "dyn-symbols",
+    "tokio_rt",
+    "tokio_macros",
+    "tokio_io_util",
+    "tokio_sync",
+] }
+tokio-serial = "5"
 
 [build-dependencies]
-napi-build = "2"
+napi-build = { version = "2" }
 
 [profile.release]
 lto = true
 strip = "symbols"
+opt-level = 3
+panic = "abort"
+codegen-units = 1
