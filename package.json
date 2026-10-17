@@ -40,7 +40,7 @@
         ]
     },
     "engines": {
-        "node": ">= 22.14.0 < 23 || >= 23.6.0"
+        "node": "24 || 26"
     },
     "publishConfig": {
         "registry": "https://registry.npmjs.org/",
@@ -48,7 +48,7 @@
     },
     "scripts": {
         "artifacts": "napi artifacts",
-        "build": "napi build --platform --release --esm",
+        "build": "napi build --platform --esm --release --strip",
         "build:debug": "napi build --platform --esm",
         "format": "run-p format:oxfmt format:rs",
         "format:oxfmt": "oxfmt",
@@ -56,23 +56,21 @@
         "lint": "oxlint .",
         "test": "node --test",
         "prepublishOnly": "napi pre-publish -t npm",
-        "preversion": "napi build --platform --release --esm && git add .",
+        "preversion": "napi build --platform --esm --release --strip && git add .",
         "version": "napi version",
         "prepare": "husky"
     },
     "devDependencies": {
-        "@emnapi/core": "^2.0.0-alpha.4",
-        "@emnapi/runtime": "^2.0.0-alpha.4",
-        "@napi-rs/cli": "^3.8.6",
-        "@napi-rs/wasm-runtime": "^1.2.3",
-        "@tybys/wasm-util": "^0.10.3",
-        "@types/node": "^26.4.0",
-        "emnapi": "^2.0.0-alpha.4",
+        "@emnapi/core": "^2.0.0-beta.2",
+        "@emnapi/runtime": "^2.0.0-beta.2",
+        "@napi-rs/cli": "^3.10.8",
+        "@types/node": "^26.6.5",
+        "emnapi": "^2.0.0-beta.2",
         "husky": "^9.1.7",
-        "lint-staged": "^17.4.1",
+        "lint-staged": "^17.6.0",
         "npm-run-all2": "^9.0.3",
-        "oxfmt": "^0.65.0",
-        "oxlint": "^1.80.0",
+        "oxfmt": "^0.73.0",
+        "oxlint": "^1.88.0",
         "typescript": "^7.0.2"
     },
     "lint-staged": {
@@ -83,5 +81,5 @@
             "oxfmt --write"
         ]
     },
-    "packageManager": "yarn@4.18.0"
+    "packageManager": "yarn@4.18.1"
 }

@@ -1,9 +1,10 @@
 use std::sync::{
-    atomic::{AtomicBool, Ordering},
     Arc, Mutex,
+    atomic::{AtomicBool, Ordering},
 };
 
 use napi::{
+    Error, Status,
     bindgen_prelude::{Buffer, Result},
     threadsafe_function::{ThreadsafeFunction, ThreadsafeFunctionCallMode},
     tokio::{
@@ -11,7 +12,6 @@ use napi::{
         io::{AsyncReadExt, AsyncWriteExt},
         sync::{mpsc, oneshot},
     },
-    Error, Status,
 };
 use napi_derive::napi;
 use tokio_serial::{SerialPort, SerialPortBuilderExt, SerialPortType};
@@ -287,7 +287,7 @@ fn serial_config(options: Option<SerialPortOptions>) -> Result<SerialConfig> {
             return Err(Error::new(
                 Status::InvalidArg,
                 format!("invalid data_bits: {value}; expected 5, 6, 7, or 8"),
-            ))
+            ));
         }
     };
     let parity = match options
@@ -304,7 +304,7 @@ fn serial_config(options: Option<SerialPortOptions>) -> Result<SerialConfig> {
             return Err(Error::new(
                 Status::InvalidArg,
                 format!("invalid parity: {value}; expected none, odd, or even"),
-            ))
+            ));
         }
     };
     let stop_bits = match options.stop_bits.unwrap_or(1) {
@@ -314,7 +314,7 @@ fn serial_config(options: Option<SerialPortOptions>) -> Result<SerialConfig> {
             return Err(Error::new(
                 Status::InvalidArg,
                 format!("invalid stop_bits: {value}; expected 1 or 2"),
-            ))
+            ));
         }
     };
     let flow_control = match options
@@ -331,7 +331,7 @@ fn serial_config(options: Option<SerialPortOptions>) -> Result<SerialConfig> {
             return Err(Error::new(
                 Status::InvalidArg,
                 format!("invalid flow_control: {value}; expected none, software or hardware"),
-            ))
+            ));
         }
     };
 

@@ -1,6 +1,6 @@
 [package]
 authors = ["Nerivec"]
-edition = "2021"
+edition = "2024"
 name = "serialport_napi_rs"
 version = "0.1.0"
 
@@ -9,7 +9,7 @@ crate-type = ["cdylib"]
 
 [dependencies]
 napi-derive = { version = "3.0" }
-napi = { version = "3.0", features = [
+napi = { version = "3.0", default-features = false, features = [
     "napi10",
     "dyn-symbols",
     "tokio_rt",

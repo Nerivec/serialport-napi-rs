@@ -1,5 +1,4 @@
 name: CI
-
 env:
     DEBUG: napi:*
     APP_NAME: serialport-napi-rs
@@ -35,7 +34,7 @@ jobs:
               uses: actions/setup-node@v7
               with:
                   node-version: 24
-                  cache: yarn
+                  cache: 'yarn'
 
             - name: Install
               uses: dtolnay/rust-toolchain@stable
@@ -145,7 +144,6 @@ jobs:
                   name: bindings-${{ matrix.settings.target }}
                   path: |
                       ${{ env.APP_NAME }}.*.node
-                      ${{ env.APP_NAME }}.*.wasm
                   if-no-files-found: error
     test-macOS-windows-binding:
         name: Test bindings on ${{ matrix.settings.target }} - node@${{ matrix.node }}
@@ -168,7 +166,6 @@ jobs:
                       target: x86_64-apple-darwin
                       architecture: x64
                 node:
-                    - '22'
                     - '24'
                     - '26'
         runs-on: ${{ matrix.settings.host }}
@@ -210,7 +207,6 @@ jobs:
                     - aarch64-unknown-linux-gnu
                     - aarch64-unknown-linux-musl
                 node:
-                    - '22'
                     - '24'
                     - '26'
         runs-on: ${{ contains(matrix.target, 'aarch64') && 'ubuntu-24.04-arm' || 'ubuntu-latest' }}
@@ -262,7 +258,7 @@ jobs:
               with:
                   image: ${{ steps.docker.outputs.IMAGE }}
                   name: test-bindings-${{ matrix.target }}
-                  options: '-v ${{ github.workspace }}:${{ github.workspace }} -w ${{ github.workspace }} --platform ${{ steps.docker.outputs.PLATFORM }}'
+                  options: -v ${{ github.workspace }}:${{ github.workspace }} -w ${{ github.workspace }} --platform ${{ steps.docker.outputs.PLATFORM }}
                   args: npm run test
     publish:
         name: Publish
