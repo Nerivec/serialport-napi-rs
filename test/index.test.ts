@@ -3,6 +3,12 @@ import { availablePorts, NativeSerialPort } from '../index.js'
 
 const noop = () => {}
 
+test('rejects an invalid command_channel_capacity value', (t: TestContext) => {
+    t.assert.rejects(async () => {
+        await NativeSerialPort.open('/path/that/does/not/matter', { commandChannelCapacity: 0 }, noop)
+    }, /command_channel_capacity/)
+})
+
 test('rejects an invalid data_bits value', (t: TestContext) => {
     t.assert.rejects(async () => {
         await NativeSerialPort.open(
@@ -12,7 +18,6 @@ test('rejects an invalid data_bits value', (t: TestContext) => {
                 dataBits: 9,
             },
             noop,
-            16,
         )
     }, /data_bits/)
 })
@@ -26,7 +31,6 @@ test('rejects an invalid parity value', (t: TestContext) => {
                 parity: 'mark',
             },
             noop,
-            16,
         )
     }, /parity/)
 })
@@ -40,7 +44,6 @@ test('rejects an invalid stop_bits value', (t: TestContext) => {
                 stopBits: 3,
             },
             noop,
-            16,
         )
     }, /stop_bits/)
 })
@@ -54,14 +57,13 @@ test('rejects an invalid flow_control value', (t: TestContext) => {
                 flowControl: 'bad',
             },
             noop,
-            16,
         )
     }, /flow_control/)
 })
 
 test('reports an unavailable device path', (t: TestContext) => {
     t.assert.rejects(async () => {
-        await NativeSerialPort.open('/definitely/not/a/real/serial/device', {}, noop, 16)
+        await NativeSerialPort.open('/definitely/not/a/real/serial/device', {}, noop)
     })
 })
 
@@ -99,7 +101,6 @@ testWithDevice('opens and closes the configured serial device', async (t: TestCo
                 onData(data)
             }
         },
-        16,
     )
 
     t.assert.doesNotThrow(() => port.close())
@@ -135,7 +136,6 @@ testWithDevice('receives bytes from the configured serial device', async (t: Tes
                 onData(data)
             }
         },
-        16,
     )
 
     await port.write(Buffer.from('ping'))

@@ -54,6 +54,10 @@ pub struct SerialPortOptions {
     ///
     /// If `None`, preserve the state of data terminal ready (DTR) when opening the device.
     pub dtr_on_open: Option<bool>,
+    /// Capacity of the bounded mpsc channel used to send commands to the port.
+    ///
+    /// Defaults to 16.
+    pub command_channel_capacity: Option<u16>,
 }
 
 #[napi]
@@ -65,12 +69,16 @@ pub struct NativeSerialPort {
 
 #[napi]
 impl NativeSerialPort {
+    /// Open the native serial port with the given options.
+    /// Does the following:
+    /// - validate args, use sensible defaults when optional
+    /// - open native port stream
+    /// - spawn task to handle received commands & port stream
     #[napi(factory)]
     pub async fn open(
         path: String,
         options: Option<SerialPortOptions>,
         callback: ThreadsafeFunction<Buffer, ()>,
-        channel_capacity: u16,
     ) -> Result<Self> {
         let config = serial_config(options)?;
         let mut builder = tokio_serial::new(path, config.baud_rate)
@@ -89,7 +97,7 @@ impl NativeSerialPort {
         let mut stream = builder
             .open_native_async()
             .map_err(|error| napi_error(format!("failed to open serial port: {error}")))?;
-        let (command_tx, mut command_rx) = mpsc::channel(channel_capacity as usize);
+        let (command_tx, mut command_rx) = mpsc::channel(config.command_channel_capacity as usize);
         let closed = Arc::new(AtomicBool::new(false));
 
         let task = tokio::spawn({
@@ -267,6 +275,7 @@ struct SerialConfig {
     stop_bits: tokio_serial::StopBits,
     flow_control: tokio_serial::FlowControl,
     dtr_on_open: Option<bool>,
+    command_channel_capacity: usize,
 }
 
 fn serial_config(options: Option<SerialPortOptions>) -> Result<SerialConfig> {
@@ -277,6 +286,7 @@ fn serial_config(options: Option<SerialPortOptions>) -> Result<SerialConfig> {
         stop_bits: None,
         flow_control: None,
         dtr_on_open: None,
+        command_channel_capacity: None,
     });
     let data_bits = match options.data_bits.unwrap_or(8) {
         5 => tokio_serial::DataBits::Five,
@@ -334,6 +344,16 @@ fn serial_config(options: Option<SerialPortOptions>) -> Result<SerialConfig> {
             ));
         }
     };
+    let command_channel_capacity = match options.command_channel_capacity {
+        Some(value) if value < 1 => {
+            return Err(Error::new(
+                Status::InvalidArg,
+                format!("invalid command_channel_capacity: {value}; expected >=1"),
+            ));
+        }
+        Some(value) => value as usize,
+        None => 16,
+    };
 
     Ok(SerialConfig {
         baud_rate: options.baud_rate.unwrap_or(115_200),
@@ -342,6 +362,7 @@ fn serial_config(options: Option<SerialPortOptions>) -> Result<SerialConfig> {
         stop_bits,
         flow_control,
         dtr_on_open: options.dtr_on_open,
+        command_channel_capacity,
     })
 }
 
@@ -421,6 +442,7 @@ mod tests {
             stop_bits: None,
             flow_control: None,
             dtr_on_open: None,
+            command_channel_capacity: None,
         }
     }
 
@@ -434,6 +456,7 @@ mod tests {
         assert_eq!(config.stop_bits, tokio_serial::StopBits::One);
         assert_eq!(config.flow_control, tokio_serial::FlowControl::None);
         assert_eq!(config.dtr_on_open, None);
+        assert_eq!(config.command_channel_capacity, 16);
     }
 
     #[test]
@@ -445,6 +468,7 @@ mod tests {
             stop_bits: Some(2),
             flow_control: Some("hardware".into()),
             dtr_on_open: Some(true),
+            command_channel_capacity: Some(128),
         }))
         .unwrap();
 
@@ -454,6 +478,7 @@ mod tests {
         assert_eq!(config.stop_bits, tokio_serial::StopBits::Two);
         assert_eq!(config.flow_control, tokio_serial::FlowControl::Hardware);
         assert_eq!(config.dtr_on_open, Some(true));
+        assert_eq!(config.command_channel_capacity, 128);
     }
 
     #[test]
@@ -490,6 +515,16 @@ mod tests {
     fn rejects_invalid_flow_control() {
         let result = serial_config(Some(SerialPortOptions {
             flow_control: Some("bad".into()),
+            ..empty_options()
+        }));
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn rejects_invalid_command_channel_capacity() {
+        let result = serial_config(Some(SerialPortOptions {
+            command_channel_capacity: Some(0),
             ..empty_options()
         }));
 

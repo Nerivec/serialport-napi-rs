@@ -10,11 +10,17 @@
 export declare const __napiBindingTarget: 'native' | 'wasm32-wasi' | 'wasm32-wasip1'
 
 export declare class NativeSerialPort {
+    /**
+     * Open the native serial port with the given options.
+     * Does the following:
+     * - validate args, use sensible defaults when optional
+     * - open native port stream
+     * - spawn task to handle received commands & port stream
+     */
     static open(
         path: string,
         options: SerialPortOptions | undefined | null,
         callback: (err: Error | null, arg: Buffer) => void,
-        channelCapacity: number,
     ): Promise<NativeSerialPort>
     /** Write all bytes to the serial port. */
     write(data: Buffer): Promise<void>
@@ -71,4 +77,10 @@ export interface SerialPortOptions {
      * If `None`, preserve the state of data terminal ready (DTR) when opening the device.
      */
     dtrOnOpen?: boolean
+    /**
+     * Capacity of the bounded mpsc channel used to send commands to the port.
+     *
+     * Defaults to 16.
+     */
+    commandChannelCapacity?: number
 }
