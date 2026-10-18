@@ -16,7 +16,10 @@ use napi::{
 use napi_derive::napi;
 use tokio_serial::{SerialPort, SerialPortBuilderExt, SerialPortType};
 
-const CALLBACK_QUEUE_CAPACITY: usize = 64;
+const READ_BUFFER_CAPACITY: usize = 4096;
+/// 256*4096 = ~1MiB.
+/// Tolerates a meaningful JS event-loop "pause" without infinite growth.
+const CALLBACK_QUEUE_CAPACITY: usize = 256;
 
 fn generic_error(message: impl Into<String>) -> Error {
     Error::new(Status::GenericFailure, message.into())
@@ -118,7 +121,7 @@ impl NativeSerialPort {
             let closed_clone = Arc::clone(&closed);
 
             async move {
-                let mut buffer = vec![0_u8; 4096];
+                let mut buffer = vec![0_u8; READ_BUFFER_CAPACITY];
 
                 loop {
                     tokio::select! {
