@@ -16,6 +16,8 @@ use napi::{
 use napi_derive::napi;
 use tokio_serial::{SerialPort, SerialPortBuilderExt, SerialPortType};
 
+const CALLBACK_QUEUE_CAPACITY: usize = 64;
+
 fn napi_error(message: impl Into<String>) -> Error {
     Error::new(Status::GenericFailure, message.into())
 }
@@ -78,7 +80,15 @@ impl NativeSerialPort {
     pub async fn open(
         path: String,
         options: Option<SerialPortOptions>,
-        callback: ThreadsafeFunction<Buffer, ()>,
+        callback: ThreadsafeFunction<
+            Buffer,
+            (),
+            Buffer,
+            Status,
+            true,
+            false,
+            CALLBACK_QUEUE_CAPACITY,
+        >,
     ) -> Result<Self> {
         let config = serial_config(options)?;
         let mut builder = tokio_serial::new(path, config.baud_rate)
@@ -138,10 +148,13 @@ impl NativeSerialPort {
 
                                 Ok(length) => {
                                     let data = Buffer::from(buffer[..length].to_vec());
-                                    let _ = callback.call(
-                                        Ok(data),
-                                        ThreadsafeFunctionCallMode::NonBlocking,
-                                    );
+
+                                    match callback.call(Ok(data), ThreadsafeFunctionCallMode::NonBlocking) {
+                                        Status::Ok => {}
+                                        Status::QueueFull => {}
+                                        Status::Closing => break,
+                                        _ => break,
+                                    }
                                 }
 
                                 Err(error) => {
