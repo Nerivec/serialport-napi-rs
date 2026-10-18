@@ -18,8 +18,12 @@ use tokio_serial::{SerialPort, SerialPortBuilderExt, SerialPortType};
 
 const CALLBACK_QUEUE_CAPACITY: usize = 64;
 
-fn napi_error(message: impl Into<String>) -> Error {
+fn generic_error(message: impl Into<String>) -> Error {
     Error::new(Status::GenericFailure, message.into())
+}
+
+fn closed_error() -> Error {
+    Error::new(Status::Closing, "serial port is closed")
 }
 
 enum Command {
@@ -106,7 +110,7 @@ impl NativeSerialPort {
         // requires being in the async runtime, hence the async factory fn
         let mut stream = builder
             .open_native_async()
-            .map_err(|error| napi_error(format!("failed to open serial port: {error}")))?;
+            .map_err(|error| generic_error(format!("failed to open serial port: {error}")))?;
         let (command_tx, mut command_rx) = mpsc::channel(config.command_channel_capacity as usize);
         let closed = Arc::new(AtomicBool::new(false));
 
@@ -146,7 +150,7 @@ impl NativeSerialPort {
                             match result {
                                 Ok(0) => {
                                     let _ = callback.call(
-                                        Err(napi_error("serial port disconnected (EOF)")),
+                                        Err(generic_error("serial port disconnected (EOF)")),
                                         ThreadsafeFunctionCallMode::NonBlocking,
                                     );
 
@@ -167,7 +171,7 @@ impl NativeSerialPort {
                                 Err(error) => {
                                     if !closed_clone.load(Ordering::Acquire) {
                                         let _ = callback.call(
-                                            Err(napi_error(format!("serial read error: {error}"))),
+                                            Err(generic_error(format!("serial read error: {error}"))),
                                             ThreadsafeFunctionCallMode::NonBlocking,
                                         );
                                     }
@@ -198,7 +202,7 @@ impl NativeSerialPort {
     #[napi]
     pub async fn write(&self, data: Buffer) -> Result<()> {
         if self.closed.load(Ordering::Acquire) {
-            return Err(Error::new(Status::Closing, "serial port is closed"));
+            return Err(closed_error());
         }
 
         let (reply_tx, reply_rx) = oneshot::channel();
@@ -206,12 +210,12 @@ impl NativeSerialPort {
         self.command_tx
             .send(Command::Write(data.to_vec(), reply_tx))
             .await
-            .map_err(|_| Error::new(Status::Closing, "serial port is closed"))?;
+            .map_err(|_| closed_error())?;
 
         reply_rx
             .await
-            .map_err(|_| Error::new(Status::Closing, "serial port is closed"))?
-            .map_err(|error| napi_error(format!("serial write error: {error}")))?;
+            .map_err(|_| closed_error())?
+            .map_err(|error| generic_error(format!("serial write error: {error}")))?;
 
         Ok(())
     }
@@ -220,7 +224,7 @@ impl NativeSerialPort {
     #[napi]
     pub async fn write_request_to_send(&self, level: bool) -> Result<()> {
         if self.closed.load(Ordering::Acquire) {
-            return Err(Error::new(Status::Closing, "serial port is closed"));
+            return Err(closed_error());
         }
 
         let (reply_tx, reply_rx) = oneshot::channel();
@@ -228,12 +232,14 @@ impl NativeSerialPort {
         self.command_tx
             .send(Command::RequestToSend(level, reply_tx))
             .await
-            .map_err(|_| Error::new(Status::Closing, "serial port is closed"))?;
+            .map_err(|_| closed_error())?;
 
         reply_rx
             .await
-            .map_err(|_| Error::new(Status::Closing, "serial port is closed"))?
-            .map_err(|error| napi_error(format!("serial write request to send error: {error}")))?;
+            .map_err(|_| closed_error())?
+            .map_err(|error| {
+                generic_error(format!("serial write request to send error: {error}"))
+            })?;
 
         Ok(())
     }
@@ -242,7 +248,7 @@ impl NativeSerialPort {
     #[napi]
     pub async fn write_data_terminal_ready(&self, level: bool) -> Result<()> {
         if self.closed.load(Ordering::Acquire) {
-            return Err(Error::new(Status::Closing, "serial port is closed"));
+            return Err(closed_error());
         }
 
         let (reply_tx, reply_rx) = oneshot::channel();
@@ -250,13 +256,13 @@ impl NativeSerialPort {
         self.command_tx
             .send(Command::DataTerminalReady(level, reply_tx))
             .await
-            .map_err(|_| Error::new(Status::Closing, "serial port is closed"))?;
+            .map_err(|_| closed_error())?;
 
         reply_rx
             .await
-            .map_err(|_| Error::new(Status::Closing, "serial port is closed"))?
+            .map_err(|_| closed_error())?
             .map_err(|error| {
-                napi_error(format!("serial write data terminal ready error: {error}"))
+                generic_error(format!("serial write data terminal ready error: {error}"))
             })?;
 
         Ok(())
@@ -269,7 +275,7 @@ impl NativeSerialPort {
         let task = self
             .task
             .lock()
-            .map_err(|_| napi_error("failed to lock task"))?
+            .map_err(|_| generic_error("failed to lock task"))?
             .take();
 
         if let Some(task) = task {
@@ -456,7 +462,7 @@ pub fn available_ports() -> Result<Vec<AvailablePort>> {
                 })
                 .collect()
         })
-        .map_err(|error| napi_error(format!("failed to enumerate serial ports: {error}")))
+        .map_err(|error| generic_error(format!("failed to enumerate serial ports: {error}")))
 }
 
 #[cfg(test)]
