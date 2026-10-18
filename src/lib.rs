@@ -144,7 +144,14 @@ impl NativeSerialPort {
 
                         result = stream.read(&mut buffer) => {
                             match result {
-                                Ok(0) => break,
+                                Ok(0) => {
+                                    let _ = callback.call(
+                                        Err(napi_error("serial port disconnected (EOF)")),
+                                        ThreadsafeFunctionCallMode::NonBlocking,
+                                    );
+
+                                    break
+                                },
 
                                 Ok(length) => {
                                     let data = Buffer::from(buffer[..length].to_vec());
@@ -175,6 +182,8 @@ impl NativeSerialPort {
                         break;
                     }
                 }
+
+                closed_clone.store(true, Ordering::Release);
             }
         });
 
@@ -210,6 +219,10 @@ impl NativeSerialPort {
     /// Wrap [`SerialPort::write_request_to_send`].
     #[napi]
     pub async fn write_request_to_send(&self, level: bool) -> Result<()> {
+        if self.closed.load(Ordering::Acquire) {
+            return Err(Error::new(Status::Closing, "serial port is closed"));
+        }
+
         let (reply_tx, reply_rx) = oneshot::channel();
 
         self.command_tx
@@ -228,6 +241,10 @@ impl NativeSerialPort {
     /// Wrap [`SerialPort::write_data_terminal_ready`].
     #[napi]
     pub async fn write_data_terminal_ready(&self, level: bool) -> Result<()> {
+        if self.closed.load(Ordering::Acquire) {
+            return Err(Error::new(Status::Closing, "serial port is closed"));
+        }
+
         let (reply_tx, reply_rx) = oneshot::channel();
 
         self.command_tx
@@ -248,10 +265,7 @@ impl NativeSerialPort {
     /// Abort the command/read task and mark closed.
     #[napi]
     pub async fn close(&self) -> Result<()> {
-        if self.closed.swap(true, Ordering::AcqRel) {
-            return Ok(());
-        }
-
+        let was_open = !self.closed.swap(true, Ordering::AcqRel);
         let task = self
             .task
             .lock()
@@ -259,7 +273,9 @@ impl NativeSerialPort {
             .take();
 
         if let Some(task) = task {
-            task.abort();
+            if was_open {
+                task.abort();
+            }
 
             let _ = task.await;
         }
