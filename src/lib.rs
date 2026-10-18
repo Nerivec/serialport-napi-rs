@@ -234,7 +234,7 @@ impl NativeSerialPort {
         let task = self
             .task
             .lock()
-            .map_err(|_| Error::new(Status::GenericFailure, "failed to lock task"))?
+            .map_err(|_| napi_error("failed to lock task"))?
             .take();
 
         if let Some(task) = task {
@@ -251,10 +251,10 @@ impl Drop for NativeSerialPort {
     fn drop(&mut self) {
         self.closed.store(true, Ordering::Release);
 
-        if let Ok(mut task) = self.task.lock() {
-            if let Some(task) = task.take() {
-                task.abort();
-            }
+        if let Ok(mut task) = self.task.lock()
+            && let Some(task) = task.take()
+        {
+            task.abort();
         }
     }
 }
@@ -406,12 +406,7 @@ pub fn available_ports() -> Result<Vec<AvailablePort>> {
                 })
                 .collect()
         })
-        .map_err(|error| {
-            Error::new(
-                Status::GenericFailure,
-                format!("failed to enumerate serial ports: {error}"),
-            )
-        })
+        .map_err(|error| napi_error(format!("failed to enumerate serial ports: {error}")))
 }
 
 #[cfg(test)]
